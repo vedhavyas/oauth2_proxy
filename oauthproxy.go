@@ -476,9 +476,6 @@ func (p *OAuthProxy) OAuthCallback(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	redirect := req.Form.Get("state")
-	if !strings.HasPrefix(redirect, "/") {
-		redirect = "/"
-	}
 
 	// set cookie, or deny
 	if p.Validator(session.Email) && p.provider.ValidateGroup(session.Email) {
@@ -489,7 +486,26 @@ func (p *OAuthProxy) OAuthCallback(rw http.ResponseWriter, req *http.Request) {
 			p.ErrorPage(rw, 500, "Internal Error", "Internal Error")
 			return
 		}
-		http.Redirect(rw, req, redirect, 302)
+		var redirectURL *url.URL
+		if IsAbsolutePath(redirect){
+			redirectURL, _ = url.Parse(redirect)
+			params := url.Values{}
+			params.Set("email", session.Email)
+			params.Set("user", session.User)
+			redirectURL.RawQuery = params.Encode()
+		} else {
+			if !strings.HasPrefix(redirect, "/") {
+				redirect = "/"
+			}
+
+			redirectURL, err = url.Parse(redirect)
+			if err != nil {
+				log.Printf("%s %s", remoteAddr, err)
+				p.ErrorPage(rw, 500, "Internal Error", "Internal Error")
+				return
+			}
+		}
+		http.Redirect(rw, req, redirectURL.String(), 302)
 	} else {
 		log.Printf("%s Permission Denied: %q is unauthorized", remoteAddr, session.Email)
 		p.ErrorPage(rw, 403, "Permission Denied", "Invalid Account")

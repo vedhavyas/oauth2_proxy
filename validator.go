@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"unsafe"
+	"net/url"
 )
 
 type UserMap struct {
@@ -93,4 +94,18 @@ func newValidatorImpl(domains []string, usersFile string,
 
 func NewValidator(domains []string, usersFile string) func(string) bool {
 	return newValidatorImpl(domains, usersFile, nil, func() {})
+}
+
+//IsAbsolutePath determines whether path provided is Absolute or relative
+func IsAbsolutePath(path string) bool {
+	pathURL, err := url.Parse(path)
+	if err != nil {
+		return false
+	}
+
+	if pathURL.Host == "" && pathURL.Scheme == "" {
+		return false
+	}
+
+	return true
 }

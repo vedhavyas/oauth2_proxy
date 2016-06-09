@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/bmizerany/assert"
 )
 
 type ValidatorTest struct {
@@ -158,5 +160,23 @@ func TestValidatorIgnoreSpacesInAuthEmails(t *testing.T) {
 
 	if !validator("foo.bar@example.com") {
 		t.Error("email should validate")
+	}
+
+}
+
+func TestIsAbsolutePath(t *testing.T) {
+	tests := []struct {
+		url            string
+		expectedResult bool
+	}{
+		{url:"/redirect/", expectedResult:false},
+		{url:"http://www.test.com/redirect", expectedResult:true},
+		{url:"http://test.com", expectedResult:true},
+		{url:"www.test.com", expectedResult:false},
+	}
+
+	for _, test := range tests {
+		result := IsAbsolutePath(test.url)
+		assert.Equal(t, test.expectedResult, result)
 	}
 }
