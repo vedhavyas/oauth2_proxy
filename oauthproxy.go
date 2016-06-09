@@ -387,6 +387,15 @@ func (p *OAuthProxy) GetRedirect(req *http.Request) (string, error) {
 	return redirect, err
 }
 
+func(p *OAuthProxy) GetCallerState(req *http.Request) (string, error){
+	err := req.ParseForm()
+	if err != nil {
+		return "", err
+	}
+
+	return req.FormValue("state"), nil
+}
+
 func (p *OAuthProxy) IsWhitelistedPath(path string) (ok bool) {
 	for _, u := range p.compiledRegex {
 		ok = u.MatchString(path)
@@ -449,6 +458,16 @@ func (p *OAuthProxy) OAuthStart(rw http.ResponseWriter, req *http.Request) {
 		p.ErrorPage(rw, 500, "Internal Error", err.Error())
 		return
 	}
+
+	sourceState, err := p.GetCallerState(req)
+	if err != nil {
+		p.ErrorPage(rw, 500, "Internal Error", err.Error())
+		return
+	}
+
+	if IsAbsolutePath(redirect) && sourceState != ""{
+		redirect = fmt.Sprintf("%s||%s", redirect, sourceState)
+	}
 	redirectURI := p.GetRedirectURI(req.Host)
 	http.Redirect(rw, req, p.provider.GetLoginURL(redirectURI, redirect), 302)
 }
@@ -475,7 +494,13 @@ func (p *OAuthProxy) OAuthCallback(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirect := req.Form.Get("state")
+	state := req.Form.Get("state")
+	stateParts := strings.Split(state, "||")
+	redirect := stateParts[0]
+	var sourceState string
+	if len(stateParts) > 1 {
+		sourceState = stateParts[1]
+	}
 
 	// set cookie, or deny
 	if p.Validator(session.Email) && p.provider.ValidateGroup(session.Email) {
@@ -492,6 +517,9 @@ func (p *OAuthProxy) OAuthCallback(rw http.ResponseWriter, req *http.Request) {
 			params := url.Values{}
 			params.Set("email", session.Email)
 			params.Set("user", session.User)
+			if sourceState != ""{
+				params.Set("state", sourceState)
+			}
 			redirectURL.RawQuery = params.Encode()
 		} else {
 			if !strings.HasPrefix(redirect, "/") {
